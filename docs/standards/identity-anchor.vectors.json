@@ -1,0 +1,43 @@
+{
+  "_comment": "Shared test vectors for the Sinetti identity anchor. src/identityanchor.ts tests against this file; any other implementation of the derivation should test against the same vectors rather than its own copy.",
+  "algorithm": "keccak256(utf8(\"sinetti-identity-anchor:v1:\" + assurance + \":\" + identity_ref))",
+  "zero": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "vectors": [
+    {
+      "note": "a proven LEI, the common case",
+      "assurance": "proven",
+      "identity_ref": "lei:5493001KJTIIGC8Y1R12",
+      "anchor": "0xfe0eb9d9e4b356d69cda003af26ea7e2b424ea9ca9e8fd1e4fa8b45c5a2dc22c"
+    },
+    {
+      "note": "the same LEI at a weaker level is a different anchor",
+      "assurance": "claimed",
+      "identity_ref": "lei:5493001KJTIIGC8Y1R12",
+      "anchor": "0x4fc2b9d7aa51cc15c2f11bdd6edc9abc155b846cf6d967669d292f59993f9b09"
+    },
+    {
+      "note": "proven-role carries the mandate role",
+      "assurance": "proven-role",
+      "identity_ref": "lei:5493001KJTIIGC8Y1R12",
+      "anchor": "0x923f2c1b0b3950ba6b72ec83159c57e4b2ddedb26893aec9a2078a58bbd8c6d3"
+    },
+    {
+      "note": "an unproven subject still anchors",
+      "assurance": "none",
+      "identity_ref": "subject:0x00000000000000000000000000000000000000a1",
+      "anchor": "0xc23f6d561817a1c6db960699843b49fbed38a8587e3096746fb0a3e1a1e43972"
+    },
+    {
+      "note": "a KERI AID, no LEI involved",
+      "assurance": "proven",
+      "identity_ref": "keri:EIaGMMWJFPmtXznY1IIiKDIrg-vIyge6mBl2QV8dDjI3",
+      "anchor": "0xbb8c940020101db9756f35df8f0dad61b3bf1d989a4db930d20a5b13fd97ca12"
+    },
+    {
+      "note": "case matters: identity_ref is used verbatim",
+      "assurance": "proven",
+      "identity_ref": "lei:5493001kjtiigc8y1r12",
+      "anchor": "0x802df6e0acf41ba62133fe5f85ac182f18aba6671342703367bee43791435be6"
+    }
+  ]
+}

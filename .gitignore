@@ -1,0 +1,12 @@
+node_modules/
+dist/
+artifacts/
+cache/
+typechain-types/
+.env*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+coverage/
+.publication-blocklist.local

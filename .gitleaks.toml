@@ -1,0 +1,8 @@
+# The publisher names the environment variable that holds its signing key as a string
+# ("ERC8004_PRIVATE_KEY"), which the generic-api-key rule mistakes for a credential.
+# The name is public by design; the value never appears in the tree.
+[extend]
+useDefault = true
+
+[allowlist]
+regexes = ['''ERC8004_PRIVATE_KEY''']

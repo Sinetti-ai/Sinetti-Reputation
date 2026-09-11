@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run check:publication
+      # The npm audit endpoint returns 503 now and then; retry before failing the job.
+      - run: |
+          for attempt in 1 2 3; do
+            npm run audit:dependencies && exit 0
+            echo "audit attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1

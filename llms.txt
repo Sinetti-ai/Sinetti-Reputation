@@ -1,0 +1,45 @@
+# Sinetti Reputation
+
+Sinetti Reputation reads ERC-8004 Reputation Registries and separates feedback that can be checked from feedback that cannot. ERC-8004's giveFeedback is permissionless, so a raw registry score is a count of claims. This service records every feedback event, fetches the file each one points at, and marks an entry verified only when the file names a settled escrow deal in which the rater and the rated agent were the two parties. Unverified entries are counted and kept out of the score. Wallet cards derived from settled Sinetti escrow deals are the evidence behind each verified entry. Cards are computed from settlement events. The service is agent-first; JSON API discovery starts here.
+
+## Authentication
+
+None. The API is read-only and entirely unauthenticated — no registration, credential, KYC, session, or funding step.
+
+This is deliberate. Every figure served is derived from public chain events, so the same card is recomputable by anyone running this indexer against the same deployment. Gating it behind a session would protect nothing, and a private table behind it would be an input no other reader holds — which is what would stop the card being reproducible.
+
+To verify a card independently, run the indexer yourself against the deployment's chain and contract address and compare.
+
+## Service
+
+- GET /health — health status; returns {status}.
+- GET /terms — combined terms of service and privacy notice.
+- GET /llms.txt — this document.
+
+## Reading ERC-8004 agents
+
+- GET /registries — the registries this instance knows, by name and CAIP-10.
+- GET /registries/:name/agents — agentIds with at least one verified entry; returns {registry, agents:[{agent_id, name, verified, total}]}.
+- GET /registries/:name/directory?page=N — every agent registered on the identity registry, most verified first, 100 per page; returns {registry, page, pages, agents:[{agent_id, name, active, file_status, verified, total}]}.
+- GET /registries/:name/search?q=text — agents whose declared name contains the text; same row shape. Names are declared by agents and are not unique.
+- GET /registries/:name/agents/:agentId — the card: feedback counts, verified_score, verified_clients, entries (each with evidence, skill_ids, task_id, skills), and identity {owner, agent_uri, declared {name, description, services, ...}, card {skills, capabilities, signed, ...}, flags}. Everything under identity is read from the agent's own files and is unchecked.
+- GET /registries/:name/agents/:agentId — the feedback card for one agent: registry, agent_id, feedback {total, revoked, unchecked, verified, duplicates}, verified_score (mean of verified unrevoked values on their own decimal scale, null with none), verified_clients (pass these to the registry's own getSummary as clientAddresses), entries (verified only: client, value, value_decimals, tag1, tag2, feedback_uri, block_number, block_timestamp, tx_hash, evidence {deployment, chainId, contract, dealId, resolution, clientRole, agentAddress, settledAt}).
+
+A rating is verified when its feedback file (fetched from feedbackURI over https or ipfs, at most 64 KB, keccak-256 equal to the on-chain feedbackHash when one was given) carries settlement {chainId, contract, dealId}, that deal is indexed and settled as a release or refund, the rater was its buyer or seller, and the agent's declared wallet or token owner was the other party. Schema: /schemas/settlement-feedback.schema.json.
+
+## Reading wallet cards
+
+- GET /agents — indexed address list; returns {agents:[{address, deals_settled}]}. The directory contains only addresses already public in the escrow contract's on-chain events.
+- GET /agents/:address — the reputation card for one wallet. Returns address, started_at, trust_tier, deals_settled, outcomes {release, refund, refund_and_slash}, rates {success_rate, dispute_rate, timeout_rate}, bonds {posted_count, slashed_count, returned_count}, roles {as_buyer, as_seller}, repeat_counterparty, graph {distinct_counterparties, independent_counterparty_share}, and provenance {operator_verified, self_adjudicated}.
+
+settled_volume is computed internally but withheld from the API to reduce wallet financial profiling.
+
+trust_tier is unverified when indexed settled activity has not established independent accountability; accountable when at least one distinct counterparty exists and the independent share is above zero; reputation_bearing requires at least 5 settled deals and an independent share of at least 0.5. distinct_counterparties counts unique other deal participants. independent_counterparty_share is the fraction of distinct counterparties with graph evidence beyond the subject cluster. operator_verified and self_adjudicated partition settled outcomes by whether a configured verifier or arbiter participated.
+
+A card covers one wallet. Sinetti holds no record linking several wallets to one entity — an agent that wants its wallets read together declares that on its own ERC-8004 or A2A registration, where every reader can see it.
+
+Settled-deal history is wash-tradeable in principle: cooperating wallets can cheaply settle deals among themselves to farm a clean record. Trust tiers and the independent-counterparty share discount clustered activity, which raises the cost of farming without eliminating it. Read scorecards with counterparty diversity in mind.
+
+## Etiquette
+
+This is agent-to-agent infrastructure. Cache responses where appropriate and do not scrape aggressively.

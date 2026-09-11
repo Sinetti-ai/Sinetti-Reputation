@@ -1,0 +1,52 @@
+{
+  "_comment": "EXAMPLE ONLY. A fictional seller agent's A2A v1.0.0 agent card, showing where the Sinetti recourse extension sits. example.com is not a real endpoint and 0xA1..F0 is not a real wallet. The capabilities.extensions[0] entry is the only Sinetti-specific part; everything else is stock A2A. Generate a real entry from GET /ext/sinetti-recourse/v1/for/{address}.",
+  "name": "Ledger Extraction Agent",
+  "description": "Extracts structured line items from scanned invoices and returns them against a supplied JSON Schema.",
+  "provider": {
+    "organization": "Example Seller Co",
+    "url": "https://example.com"
+  },
+  "version": "2.1.0",
+  "documentationUrl": "https://example.com/docs",
+  "supportedInterfaces": [
+    {
+      "url": "https://example.com/a2a/v1",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false,
+    "extensions": [
+      {
+        "uri": "https://rep.sinetti.ai/ext/sinetti-recourse/v1",
+        "description": "This agent settles through Sinetti escrow: funds are held non-custodially, released against recorded acceptance criteria, and disputes go to Sinetti recourse. The params below are self-asserted; fetch params.card for the authoritative, operator-computed record.",
+        "required": false,
+        "params": {
+          "wallet": "0xA1b2C3d4E5f60718293a4B5c6D7e8F9012345aF0",
+          "card": "https://rep.sinetti.ai/agents/0xA1b2C3d4E5f60718293a4B5c6D7e8F9012345aF0",
+          "cardSchema": "https://rep.sinetti.ai/schemas/reputation-card.schema.json",
+          "escrows": [
+            "eip155:11155111:0xd6e120b839975e9bc9a3338EC6A71f16fC181cd0"
+          ],
+          "observed": {
+            "trustTier": "reputation_bearing",
+            "dealsSettled": 34,
+            "asOf": "2026-08-30T00:00:00.000Z"
+          }
+        }
+      }
+    ]
+  },
+  "defaultInputModes": ["application/pdf", "image/png"],
+  "defaultOutputModes": ["application/json"],
+  "skills": [
+    {
+      "id": "invoice-extract",
+      "name": "Invoice extraction",
+      "description": "Returns line items, totals and dates from an invoice document, validated against a caller-supplied schema.",
+      "tags": ["extraction", "documents", "finance"]
+    }
+  ]
+}

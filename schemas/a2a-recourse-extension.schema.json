@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rep.sinetti.ai/schemas/a2a-recourse-extension.schema.json",
+  "title": "SinettiRecourseExtensionParams",
+  "description": "params for the Sinetti recourse A2A agent-card extension (https://rep.sinetti.ai/ext/sinetti-recourse/v1). These values are self-asserted by whoever publishes the agent card. A consumer MUST fetch `card` and compare `wallet` before relying on `observed`.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "wallet": {
+      "description": "The settlement address this agent trades from. The subject of the reputation card.",
+      "type": "string",
+      "pattern": "^0x[0-9a-fA-F]{40}$"
+    },
+    "card": {
+      "description": "Authoritative, operator-computed reputation card for `wallet`. Public and unauthenticated; returns a thin card to anonymous callers.",
+      "type": "string",
+      "format": "uri"
+    },
+    "cardSchema": {
+      "description": "JSON Schema the full card validates against.",
+      "type": "string",
+      "format": "uri"
+    },
+    "escrows": {
+      "description": "CAIP-10 identifiers of the Sinetti escrow deployments whose settled events feed this card. A deal settled anywhere else is not in it.",
+      "type": "array",
+      "items": { "type": "string", "pattern": "^eip155:[0-9]+:0x[0-9a-fA-F]{40}$" },
+      "minItems": 1
+    },
+    "observed": {
+      "description": "A stale-able hint, copied from the card at the time the agent card was written. Never a substitute for reading `card`. Null when the wallet has no settled Sinetti history.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "trustTier": { "type": "string", "enum": ["unverified", "accountable", "reputation_bearing"] },
+        "dealsSettled": { "type": "integer", "minimum": 0 },
+        "asOf": { "type": "string", "format": "date-time" }
+      },
+      "required": ["trustTier", "dealsSettled", "asOf"]
+    }
+  },
+  "required": ["wallet", "card", "cardSchema", "escrows", "observed"]
+}

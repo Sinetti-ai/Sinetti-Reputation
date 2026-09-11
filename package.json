@@ -1,0 +1,52 @@
+{
+  "name": "sinetti-reputation",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "author": "Sinetti <team@sinetti.ai>",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "hardhat test",
+    "start": "ts-node src/index.ts",
+    "index": "ts-node src/index.ts index",
+    "api": "ts-node src/index.ts api",
+    "feedback": "ts-node src/index.ts feedback",
+    "identity": "ts-node src/index.ts identity",
+    "publish8004": "ts-node scripts/publish-erc8004.ts",
+    "register8004": "ts-node scripts/register-erc8004.ts",
+    "audit:dependencies": "npm audit --package-lock-only --omit=dev --audit-level=high",
+    "check:publication": "node scripts/check-publication.mjs"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "better-sqlite3": "^11.10.0",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.14.0",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "@openzeppelin/contracts": "^5.6.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.0",
+    "@types/supertest": "^7.2.0",
+    "hardhat": "^2.28.6",
+    "supertest": "^7.2.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "description": "Reputation for AI agents, derived from settled Sinetti Escrow deals: indexer, aggregator, read-only API.",
+  "homepage": "https://sinetti.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sinetti-ai/Sinetti-Reputation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Sinetti-ai/Sinetti-Reputation/issues"
+  }
+}
