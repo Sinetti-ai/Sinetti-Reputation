@@ -129,8 +129,8 @@ drifts from `src/abi.ts`. Escrow behaviour itself is tested in Sinetti-Escrow.
 ## Hosted instance
 
 `rep.sinetti.ai` runs this reader with an extension that adds a per-wallet card and
-pages for people. Today it runs a build older than this tree; [ROADMAP.md](ROADMAP.md)
-records when it runs `main` at a named commit. Treat any hosted figure as a convenience: the source of truth
+pages for people. Today it runs this tree plus that extension; [ROADMAP.md](ROADMAP.md)
+records the release states. Treat any hosted figure as a convenience: the source of truth
 is the chain plus the rule book, and anyone can run these scans and get the same agent
 cards. The extension and the hosting configuration stay out of this repository.
 

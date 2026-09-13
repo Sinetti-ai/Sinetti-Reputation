@@ -38,15 +38,12 @@ The first public release is complete when a clean clone provides:
 | State | What it proves |
 |---|---|
 | Source published | The reviewed code and documentation are publicly readable; no service claim follows. |
-| Reference instance operated | rep.sinetti.ai runs this exact source at a documented commit. Today it runs older code. |
+| Reference instance operated | rep.sinetti.ai runs this exact source at a documented commit. Today it runs this tree plus the hosted extension. |
 | Seeded testnet | At least one rating on a public registry cites a settled Sinetti Escrow deal and shows as verified. |
 | Production or mainnet | An independent review supports real-value use. Nothing schedules this. |
 
 ## Next releases
 
-- Publish the remaining settled Sepolia deals through the publisher. The seller
-  wallet is registered (agent 10229) and deal 1 is published and verified; deals
-  2 and 6 are not yet.
 - Read the Validation Registry. Index `ValidationRequest` and
   `ValidationResponse`, show responses per agent by validator address, counted
   and unscored until a validator allow-list exists.

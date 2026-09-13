@@ -155,7 +155,8 @@ the reader, indexer, API and web surface never import it, transitively.
 
 ## Not done here
 
-No deal has been published to a live registry. Publishing needs a funded key on the target
+This repository publishes nothing on its own; the operator ran the publisher for the
+settled Sepolia deals, and they verify under the reader. Publishing needs a funded key on the target
 chain, a seller registered in the Identity Registry by itself (Sinetti registering on its
 behalf would make Sinetti the owner, and the spec then forbids the feedback), and the
 operator's authorisation for the write. The code, the mocks, and an end-to-end test
