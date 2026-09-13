@@ -1,10 +1,10 @@
 import { expect } from "chai";
-import { Contract, JsonRpcProvider, Provider, Signer, encodeBytes32String, getAddress, id } from "ethers";
+import { Contract, JsonRpcProvider, Log, Provider, Signer, encodeBytes32String, getAddress, id } from "ethers";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
 import { mock } from "node:test";
 import { listSettledDeals, resolveDeal } from "../src/settlement";
-import { forgetHoles } from "../src/logs";
+import { REPAIR_PASSES, forgetHoles } from "../src/logs";
 import { DeploymentConfig } from "../src/config";
 import { getLastIndexedBlock, getSyncCheckpoint, openDatabase } from "../src/db";
 import { indexDeployment, watchDeployment } from "../src/indexer";
@@ -686,6 +686,106 @@ describe("data spine integration", function () {
     // An open deal is re-asked once, then left alone for the cooldown.
     expect((await indexDeployment(db, deployment, { provider: lossy })).repaired).to.equal(0);
     expect(repairCalls).to.equal(1);
+  });
+
+  /** A slashed deal: bond posted, verdict failed, challenged, arbitrator refunds with slash. */
+  async function slashedDeal(escrow: Contract, token: Contract) {
+    const [buyer, seller, arbitrator, verifier] = await ethers.getSigners();
+    const connected = (contract: Contract, signer: Signer): Contract => contract.connect(signer) as Contract;
+    await token.mint(await buyer.getAddress(), AMOUNT);
+    await connected(token, buyer).approve(await escrow.getAddress(), AMOUNT);
+    await token.mint(await seller.getAddress(), BOND);
+    await connected(token, seller).approve(await escrow.getAddress(), BOND);
+    await connected(escrow, buyer).openDeal(openParams({
+      seller: await seller.getAddress(), verifier: await verifier.getAddress(), arbitrator: await arbitrator.getAddress(),
+      token: await token.getAddress(), amount: AMOUNT, bond: BOND, deadline: BigInt(await time.latest()) + 10_000n
+    }));
+    const dealId = (await escrow.nextDealId()) - 1n;
+    await connected(escrow, seller).postBond(dealId);
+    await connected(escrow, seller).submitDelivery(dealId, EVIDENCE);
+    await connected(escrow, verifier).recordVerification(dealId, VERDICT_FAIL, 0);
+    await connected(escrow, buyer).challenge(dealId, 0n, 0);
+    await connected(escrow, arbitrator).settle(dealId, REASON_RULING_REFUND, true);
+    return dealId;
+  }
+
+  /** Chunk-pass filters (one topic position) lose `dropTopic`; dealId filters answer through `byDeal`. */
+  function lossyProvider(dropTopic: string, byDeal: (logs: Log[]) => Log[]): { provider: Provider; dealCalls: () => number } {
+    let dealCalls = 0;
+    const provider = new Proxy(ethers.provider, {
+      get(target, property) {
+        if (property === "getLogs") {
+          return async (filter: Parameters<Provider["getLogs"]>[0]) => {
+            const logs = await target.getLogs(filter);
+            const topics = (filter as { topics?: unknown[] }).topics ?? [];
+            if (topics.length > 1) { dealCalls += 1; return byDeal(logs); }
+            return logs.filter((log) => log.topics[0] !== dropTopic);
+          };
+        }
+        const value = Reflect.get(target, property, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      }
+    }) as unknown as Provider;
+    return { provider, dealCalls: () => dealCalls };
+  }
+
+  it("completes a settled deal whose earlier log the chunk pass dropped", async function () {
+    forgetHoles();
+    const token = (await (await ethers.getContractFactory("MockUSDC")).deploy()) as Contract;
+    const escrow = await deployEscrow();
+    await token.waitForDeployment();
+    const dealId = await slashedDeal(escrow, token);
+
+    // BondSlashed is lost from the chunk pass; Settled arrives. Without the completion
+    // pass the deal has its Settled row, hole repair has nothing to ask, and the
+    // outcome reads "refund" instead of "refund_and_slash" until a rescan.
+    const { provider, dealCalls } = lossyProvider(id("BondSlashed(uint256,uint256)"), (logs) => logs);
+    const deployment: DeploymentConfig = {
+      name: "hardhat-complete", chainId: 31337, contract: await escrow.getAddress(), rpcUrl: "in-process", fromBlock: 0, confirmations: 0
+    };
+    const db = openDatabase(":memory:");
+    const result = await indexDeployment(db, deployment, { provider, chunkSize: 50 });
+    expect(dealCalls()).to.equal(1);
+    expect(result.repaired).to.equal(1);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM raw_events WHERE event_name = 'BondSlashed'").get()).to.deep.equal({ n: 1 });
+    expect(listSettledDeals(db).map((entry) => [entry.deal.deal_id, entry.resolution])).to.deep.equal([[String(dealId), "refund_and_slash"]]);
+    // Settled is terminal: a settled deal is never asked again.
+    expect((await indexDeployment(db, deployment, { provider })).repaired).to.equal(0);
+    expect(dealCalls()).to.equal(1);
+  });
+
+  it("withholds a Settled the RPC cannot confirm in full, and settles it on repair", async function () {
+    forgetHoles();
+    const token = (await (await ethers.getContractFactory("MockUSDC")).deploy()) as Contract;
+    const escrow = await deployEscrow();
+    await token.waitForDeployment();
+    const dealId = await slashedDeal(escrow, token);
+
+    // The dealId answer keeps losing the Settled log the chunk pass returned, so the
+    // answer cannot be trusted as complete and the Settled is withheld.
+    const settledTopic = id("Settled(uint256,bytes32,uint256,uint256)");
+    let withhold = true;
+    const { provider, dealCalls } = lossyProvider(id("BondSlashed(uint256,uint256)"),
+      (logs) => (withhold ? logs.filter((log) => log.topics[0] !== settledTopic) : logs));
+    const deployment: DeploymentConfig = {
+      name: "hardhat-withhold", chainId: 31337, contract: await escrow.getAddress(), rpcUrl: "in-process", fromBlock: 0, confirmations: 0
+    };
+    const db = openDatabase(":memory:");
+    const first = await indexDeployment(db, deployment, { provider, chunkSize: 50 });
+    // REPAIR_PASSES completion attempts, then hole repair asks the now-unsettled deal once
+    // and stores what that answer did hold (the BondSlashed), still without a Settled.
+    expect(dealCalls()).to.equal(REPAIR_PASSES + 1);
+    expect(first.repaired).to.equal(1);
+    expect(db.prepare("SELECT event_name, COUNT(*) AS n FROM raw_events WHERE event_name IN ('Settled', 'BondSlashed') GROUP BY event_name").all())
+      .to.deep.equal([{ event_name: "BondSlashed", n: 1 }]);
+    expect(listSettledDeals(db)).to.deep.equal([]);
+
+    // The RPC recovers; the unsettled-deal repair fetches the whole deal by dealId.
+    withhold = false;
+    forgetHoles();
+    const second = await indexDeployment(db, deployment, { provider });
+    expect(second.repaired).to.be.greaterThan(0);
+    expect(listSettledDeals(db).map((entry) => [entry.deal.deal_id, entry.resolution])).to.deep.equal([[String(dealId), "refund_and_slash"]]);
   });
 
   it("indexes four settlement paths end-to-end and resolves each outcome", async function () {

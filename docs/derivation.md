@@ -141,9 +141,11 @@ qualifications. Public RPCs sometimes answer a populated log window with an empt
 list. Every scan re-asks empty windows. The identity and feedback scans then re-ask
 holes inside the id sequences they know and print `missing`, the holes they could
 not fill; ids above the highest one seen are outside that count. The escrow scan
-re-asks deal-id holes and deals with no `Settled` log and prints `repaired`; a deal
-whose `Settled` log was indexed while an earlier log of the same deal was dropped
-(a `BondSlashed`, a `VerificationRecorded`) is not detected, and its outcome can
-differ between two instances until one of them rescans that range. The second
-qualification is rule 2: an entry with a zero `feedbackHash` is checked against a
-document that can change.
+re-asks deal-id holes and deals with no `Settled` log and prints `repaired`. The
+first sight of a `Settled` log costs one more question, the whole deal by its id
+from opening to settlement, so an earlier log the window dropped (a `BondSlashed`,
+a `VerificationRecorded`) is fetched before the outcome is read; an answer that
+lacks the `Settled` log already seen is refused, and the deal stays unsettled until
+a later answer holds it. Every repair is bounded by the RPC eventually answering a
+single-deal filter in full. The second qualification is rule 2: an entry with a
+zero `feedbackHash` is checked against a document that can change.

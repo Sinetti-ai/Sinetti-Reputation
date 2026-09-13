@@ -2,7 +2,7 @@ import { Contract, Interface, JsonRpcProvider, Log, Provider, getAddress } from 
 import { ERC20_ABI, SINETTI_ESCROW_V04_ABI } from "./abi";
 import { DeploymentConfig } from "./config";
 import { SinettiDatabase, StoredDeal, StoredEvent, getSyncCheckpoint } from "./db";
-import { getLogsRetryingEmpty, getLogsSliced, holeOnCooldown, sequenceHoles, topicOf } from "./logs";
+import { REPAIR_PASSES, getLogsRetryingEmpty, getLogsSliced, holeOnCooldown, sequenceHoles, topicOf } from "./logs";
 
 const iface = new Interface(SINETTI_ESCROW_V04_ABI);
 
@@ -295,6 +295,60 @@ async function repairEscrowHoles(
   return repaired;
 }
 
+/**
+ * The chunk pass can lose a log from the middle of a deal's history: a `BondSlashed` or
+ * a `VerificationRecorded` the RPC answered without, followed by a `Settled` it did
+ * return. Hole repair cannot see that, because the deal has its `Settled` row, and the
+ * outcome reads wrong until a rescan. So the first sight of a `Settled` costs one more
+ * question: the whole deal by its dealId topic, from the block it opened to the block it
+ * settled. That answer is complete when it holds the `Settled` log the chunk pass saw;
+ * one that does not is the same RPC losing logs again, and after REPAIR_PASSES of those
+ * the `Settled` is withheld from this chunk, so the deal stays unsettled and hole repair
+ * re-asks it by dealId next tick. `Settled` is terminal, so each deal is asked once.
+ * Returns what the chunk pass had not seen; `events` loses any withheld `Settled`.
+ */
+async function completeSettledDeals(
+  db: SinettiDatabase,
+  deployment: DeploymentConfig,
+  contract: string,
+  provider: Provider,
+  events: StoredEvent[],
+  chunkFromBlock: number
+): Promise<{ events: StoredEvent[]; deals: StoredDeal[] }> {
+  const settledHere = events.filter((event) => event.event_name === "Settled" && event.deal_id !== null);
+  const added: { events: StoredEvent[]; deals: StoredDeal[] } = { events: [], deals: [] };
+  if (settledHere.length === 0) return added;
+  const eventTopics: string[] = [];
+  iface.forEachEvent((event) => eventTopics.push(event.topicHash));
+  const seen = new Set(events.map((event) => `${event.tx_hash}:${event.log_index}`));
+  const stored = db.prepare("SELECT 1 FROM raw_events WHERE deployment = ? AND contract = ? AND tx_hash = ? AND log_index = ?");
+  const openedAt = db.prepare("SELECT block_number FROM deals WHERE deployment = ? AND contract = ? AND deal_id = ?");
+  for (const settled of settledHere) {
+    const opened = openedAt.get(deployment.name, contract, settled.deal_id) as { block_number: number } | undefined;
+    const fromBlock = opened?.block_number ?? chunkFromBlock;
+    let complete: Log[] | null = null;
+    for (let pass = 0; pass < REPAIR_PASSES && complete === null; pass += 1) {
+      const answer = await getLogsSliced(provider, {
+        address: contract, fromBlock, toBlock: settled.block_number,
+        topics: [eventTopics, [topicOf(BigInt(settled.deal_id!))]]
+      });
+      if (answer.some((log) => log.transactionHash === settled.tx_hash && log.index === settled.log_index)) complete = answer;
+    }
+    if (complete === null) {
+      events.splice(events.indexOf(settled), 1);
+      continue;
+    }
+    const fresh = complete.filter((log) =>
+      !seen.has(`${log.transactionHash}:${log.index}`) && !stored.get(deployment.name, contract, log.transactionHash, log.index)
+    );
+    const decoded = await decodeLogs(provider, deployment, contract, fresh);
+    for (const event of decoded.events) seen.add(`${event.tx_hash}:${event.log_index}`);
+    added.events.push(...decoded.events);
+    added.deals.push(...decoded.deals);
+  }
+  return added;
+}
+
 export async function indexDeployment(
   db: SinettiDatabase,
   deployment: DeploymentConfig,
@@ -330,6 +384,7 @@ export async function indexDeployment(
   }
 
   let eventCount = 0;
+  let completed = 0;
   const countedChunks: Array<{ toBlock: number; events: number }> = [];
   let previousBoundary: Checkpoint | null = checkpoint?.hash
     ? { block: checkpoint.block, hash: checkpoint.hash }
@@ -352,6 +407,9 @@ export async function indexDeployment(
       topics: [eventTopics]
     });
     const { events, deals } = await decodeLogs(provider, deployment, contract, logs);
+    const completion = await completeSettledDeals(db, deployment, contract, provider, events, fromBlock);
+    events.push(...completion.events);
+    deals.push(...completion.deals);
 
     if (previousBoundary) {
       const reconciled = await reconcileCheckpoint(
@@ -422,12 +480,13 @@ export async function indexDeployment(
     }
     persist();
     eventCount += events.length;
+    completed += completion.events.length;
     countedChunks.push({ toBlock, events: events.length });
     previousBoundary = { block: toBlock, hash: chunkAnchorHash };
     nextBlock = toBlock + 1;
     chunkReadAttempts = 0;
   }
-  const repaired = await repairEscrowHoles(db, deployment, contract, provider, latest);
+  const repaired = completed + await repairEscrowHoles(db, deployment, contract, provider, latest);
   return { fromBlock: start, toBlock: latest, events: eventCount, repaired };
 }
 

@@ -56,11 +56,6 @@ The first public release is complete when a clean clone provides:
   estimate until then.
 - Counter columns on the agents table once directory and search queries are
   slow at the registry's size.
-- Detect a dropped log inside a settled deal. Repair re-asks deal-id holes and
-  unsettled deals; a deal whose `Settled` log arrived while an earlier log was
-  dropped keeps a wrong outcome until a rescan. One extra query per deal at
-  settlement time would close it.
-
 ## Explicit non-claims
 
 A verified rating proves a settled deal between two wallets. It says nothing
