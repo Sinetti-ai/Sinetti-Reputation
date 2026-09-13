@@ -46,7 +46,11 @@ The first public release is complete when a clean clone provides:
 
 - Read the Validation Registry. Index `ValidationRequest` and
   `ValidationResponse`, show responses per agent by validator address, counted
-  and unscored until a validator allow-list exists.
+  and unscored until a validator allow-list exists. Waits on a reference
+  deployment: on 2026-09-13 the ERC-8004 contracts repository published no
+  Validation Registry address on any chain and marked that part of the
+  specification as under revision. The `ValidationRegistry` contracts on
+  Sepolia and mainnet explorers are third-party deployments.
 - Add evidence classes beyond settlement: an organisation credential (vLEI), a
   personhood credential (First Person Project). Each fits the same slot, a
   verifiable document reachable from the feedback entry. The identity anchor the
