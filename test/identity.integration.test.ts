@@ -5,7 +5,7 @@ import { HDNodeWallet, Provider, Wallet, encodeBytes32String, getAddress, keccak
 import { createApp } from "../src/api";
 import { openDatabase } from "../src/db";
 import { Fetcher, checkFeedbackFiles, indexRegistryFeedback } from "../src/feedback";
-import { agentCard, agentIdentity, checkAgentFiles, indexRegistryIdentity, listAgentDirectory, searchAgents } from "../src/identity";
+import { agentCard, agentIdentity, agentsNamed, checkAgentFiles, indexRegistryIdentity, listAgentDirectory, searchAgents } from "../src/identity";
 import { forgetHoles } from "../src/logs";
 import { KNOWN_REGISTRIES, RegistryConfig } from "../src/registries";
 import { registerAgent } from "../scripts/register-erc8004";
@@ -250,6 +250,33 @@ describe("ERC-8004 identity directory", function () {
     expect(agentCard(db, registry, "3")).to.equal(null);
   });
 
+  it("collapses one owner's agents that declare the same name into one row, and keeps another owner's apart", async function () {
+    helperFiles("1");
+    files.set("https://twin.example/registration.json", JSON.stringify({
+      type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+      name: "helper", active: true, services: [],
+      registrations: [{ agentId: 2, agentRegistry: `eip155:31337:${registry.identityRegistry}` }]
+    }));
+    files.set("https://squat.example/registration.json", JSON.stringify({
+      type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+      name: "Helper", active: true, services: [],
+      registrations: [{ agentId: 3, agentRegistry: `eip155:31337:${registry.identityRegistry}` }]
+    }));
+    await register(owner, "https://helper.example/registration.json");
+    await register(owner, "https://twin.example/registration.json");
+    await register(buyer, "https://squat.example/registration.json");
+    await readAll();
+
+    // The owner's two "Helper" registrations fold into #1; the buyer's "Helper" is another party and keeps its row.
+    const directory = listAgentDirectory(db, registry);
+    expect(directory.pages).to.equal(1);
+    expect(directory.agents.map((agent) => [agent.agent_id, agent.name, agent.registrations])).to.deep.equal([
+      ["1", "Helper", 2], ["3", "Helper", 1]
+    ]);
+    expect(searchAgents(db, registry, "help").map((agent) => [agent.agent_id, agent.registrations])).to.deep.equal([["1", 2], ["3", 1]]);
+    expect(agentsNamed(db, registry, "HELPER")).to.deep.equal(["1", "2", "3"]);
+  });
+
   describe("API and pages", function () {
     it("serves the directory, search, the merged card and the name lookup", async function () {
       const saved = KNOWN_REGISTRIES.hardhat;
@@ -264,7 +291,8 @@ describe("ERC-8004 identity directory", function () {
 
         const directory = await request(app).get("/registries/hardhat/directory").expect(200);
         expect(directory.body.pages).to.equal(1);
-        expect(directory.body.agents.map((agent: { agent_id: string }) => agent.agent_id)).to.deep.equal(["1", "2"]);
+        // Both declare "Helper" but belong to different owners: two rows.
+        expect(directory.body.agents.map((agent: { agent_id: string; registrations: number }) => [agent.agent_id, agent.registrations])).to.deep.equal([["1", 1], ["2", 1]]);
 
         const search = await request(app).get("/registries/hardhat/search?q=help").expect(200);
         expect(search.body.agents).to.have.length(2);

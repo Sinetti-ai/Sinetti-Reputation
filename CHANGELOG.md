@@ -37,7 +37,8 @@ entries show the A2A `skills` and `taskId` the rater named, matched to the
 card's skill list. Flags for a file that does not name its agentId, a card whose
 url is on another host, and the legacy `endpoints` key. Name search (`/search`,
 `/registries/:name/search`) and a paged directory (`/registries/:name/directory`,
-`/r/:registry`). `npm run identity -- <registry>`. Identity creation blocks added
+`/r/:registry`); an owner's agents declaring the same name share one directory row,
+under the lowest id, with a `registrations` count. `npm run identity -- <registry>`. Identity creation blocks added
 to registry configuration.
 
 ERC-8004 reader: index `NewFeedback` and `FeedbackRevoked` from the reference
