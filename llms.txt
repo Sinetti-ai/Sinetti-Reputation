@@ -19,7 +19,7 @@ To verify a card independently, run the indexer yourself against the deployment'
 
 - GET /registries: the registries this instance knows, by name and CAIP-10.
 - GET /registries/:name/agents?page=N: agentIds with at least one verified entry, 100 per page; returns {registry, page, pages, agents:[{agent_id, name, verified, total}]}.
-- GET /registries/:name/directory?page=N: every agent registered on the identity registry, most verified first, 100 per page; returns {registry, page, pages, agents:[{agent_id, name, active, file_status, verified, total}]}.
+- GET /registries/:name/directory?page=N: every agent registered on the identity registry, most verified first, 100 per page; an owner's agents declaring the same name share one row under the lowest id; returns {registry, page, pages, agents:[{agent_id, name, active, file_status, verified, total, registrations}]}.
 - GET /registries/:name/search?q=text: agents whose declared name contains the text; same row shape. Names are declared by agents and are not unique.
 - GET /registries/:name/agents/:agentId: the card: feedback counts, verified_score, verified_clients, entries (each with evidence, skill_ids, task_id, skills), and identity {owner, agent_uri, declared {name, description, services, ...}, card {skills, capabilities, signed, ...}, flags}. Everything under identity is read from the agent's own files and is unchecked.
 

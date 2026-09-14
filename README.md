@@ -87,7 +87,7 @@ describes the feedback document and is served at that path.
 
 - `GET /registries`: known registries by name and CAIP-10, with `missing` counts.
 - `GET /registries/:name/agents?page=N`: agent ids with at least one verified rating.
-- `GET /registries/:name/directory?page=N`: every registered agent, most verified first.
+- `GET /registries/:name/directory?page=N`: every registered agent, most verified first. An owner's agents declaring the same name share one row, under the lowest id, with a `registrations` count.
 - `GET /registries/:name/search?q=text`: agents whose declared name contains the text.
 - `GET /registries/:name/agents/:agentId`: the card. Feedback counts, `verified_score`
   (mean of verified unrevoked values, `null` with none), `verified_clients`, verified

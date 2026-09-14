@@ -469,6 +469,12 @@ export function agentCard(db: SinettiDatabase, registry: RegistryConfig, agentId
   };
 }
 
+/**
+ * One row per owner and declared name (ASCII case folded), or per agent when
+ * the file declares no name. `agent_id` is the lowest id in the group and
+ * `registrations` counts the group; verified and total sum over it. Names are
+ * not unique, so a different owner using the same name keeps its own row.
+ */
 export interface DirectoryRow {
   agent_id: string;
   name: string | null;
@@ -476,16 +482,19 @@ export interface DirectoryRow {
   file_status: FileStatus;
   verified: number;
   total: number;
+  registrations: number;
 }
 
-type DirectoryRawRow = Omit<DirectoryRow, "active"> & { active: number | null };
+type DirectoryRawRow = Omit<DirectoryRow, "active"> & { active: number | null; first_id: number };
 
 // ponytail: the verified count is aggregated over the whole feedback table on
 // every directory page and every search, once per registry. Fine at thousands
 // of rows; keep a verified/total counter on erc8004_agents, updated by the
 // feedback checker, if a registry grows past what one synchronous scan allows.
 const DIRECTORY_SELECT = `
-  SELECT a.agent_id, a.name, a.active, a.file_status, COALESCE(f.verified, 0) AS verified, COALESCE(f.total, 0) AS total
+  SELECT a.agent_id, a.name, a.active, a.file_status,
+    SUM(COALESCE(f.verified, 0)) AS verified, SUM(COALESCE(f.total, 0)) AS total,
+    COUNT(*) AS registrations, MIN(CAST(a.agent_id AS INTEGER)) AS first_id
   FROM erc8004_agents a
   LEFT JOIN (
     SELECT agent_id, ${VERIFIED_COUNT_SQL} AS verified, COUNT(*) AS total
@@ -493,19 +502,22 @@ const DIRECTORY_SELECT = `
   ) f ON f.agent_id = a.agent_id
   WHERE a.registry_chain_id = ? AND a.registry = ?
 `;
-const DIRECTORY_ORDER = "ORDER BY verified DESC, total DESC, CAST(a.agent_id AS INTEGER)";
+// Same owner, same name, one row. The bare columns (agent_id, active, file_status)
+// come from the MIN() row, which SQLite guarantees when exactly one min/max aggregate is present.
+const DIRECTORY_GROUP = "GROUP BY a.owner, COALESCE(LOWER(a.name), 'agent#' || a.agent_id)";
+const DIRECTORY_ORDER = `${DIRECTORY_GROUP} ORDER BY verified DESC, total DESC, first_id`;
 
-function directoryRow(row: DirectoryRawRow): DirectoryRow {
+function directoryRow({ first_id: _first, ...row }: DirectoryRawRow): DirectoryRow {
   return { ...row, active: row.active === null ? null : row.active === 1 };
 }
 
 export const DIRECTORY_PAGE_SIZE = 100;
 
-/** Every registered agent, most verified first. `page` starts at 1. */
+/** Every registered agent, most verified first, an owner's repeated names collapsed. `page` starts at 1. */
 export function listAgentDirectory(db: SinettiDatabase, registry: RegistryConfig, page = 1): { page: number; pages: number; agents: DirectoryRow[] } {
   const reputation = getAddress(registry.reputationRegistry);
   const identity = getAddress(registry.identityRegistry);
-  const count = (db.prepare("SELECT COUNT(*) AS n FROM erc8004_agents WHERE registry_chain_id = ? AND registry = ?")
+  const count = (db.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM erc8004_agents a WHERE a.registry_chain_id = ? AND a.registry = ? ${DIRECTORY_GROUP})`)
     .get(registry.chainId, identity) as { n: number }).n;
   const pages = Math.max(1, Math.ceil(count / DIRECTORY_PAGE_SIZE));
   const current = Math.min(Math.max(1, Math.floor(page)), pages);

@@ -60,7 +60,12 @@ are the agent describing itself. They are fetched under the feedback rules
 (https, ipfs or inline data URI, 64 KB, no redirects, no private hosts), stored with the time of
 reading, re-read after a day or when `URIUpdated` fires, and shown under
 "declared by the agent". Nothing in them reaches `verified_score`, the verified
-count, or the directory order, which sorts by verified ratings alone.
+count, or the directory order, which sorts by verified ratings alone. The one
+use the directory makes of a declared field is grouping: an owner's agents that
+declare the same name share one row, with a `registrations` count, and the
+row's verified and total sum over that group. The owner comes from the chain,
+the name from the file, so a different owner declaring the same name keeps its
+own row.
 
 Three consistency checks are shown as flags and change no figure:
 `registrations_missing` when the file's `registrations` does not name the
