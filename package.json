@@ -20,23 +20,23 @@
     "check:publication": "node scripts/check-publication.mjs"
   },
   "dependencies": {
-    "better-sqlite3": "^11.10.0",
-    "dotenv": "^16.4.7",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^17.4.2",
     "ethers": "^6.14.0",
     "express": "^5.1.0"
   },
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "@nomicfoundation/hardhat-toolbox": "^7.0.0",
     "@openzeppelin/contracts": "^5.6.1",
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/express": "^5.0.3",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^20.19.0",
-    "@types/supertest": "^7.2.0",
-    "hardhat": "^2.28.6",
+    "@types/node": "^26.4.1",
+    "@types/supertest": "^7.2.1",
+    "hardhat": "^3.15.0",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "description": "Reputation for AI agents, derived from settled Sinetti Escrow deals: indexer, aggregator, read-only API.",
   "homepage": "https://sinetti.ai",
